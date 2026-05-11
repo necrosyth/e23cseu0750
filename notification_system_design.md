@@ -379,3 +379,92 @@ Why this combo:
 - Redis cuts DB pressure
 - Pagination keeps each response light
 - Lazy fetch avoids list query on every page open
+
+# Stage 5 — Bulk Notification Redesign
+
+## Problems with the Original Code
+Original style (one-by-one loop):
+```text
+for each student in students:
+  insert notification in DB
+  send_email(student)
+```
+
+What goes wrong:
+- It is synchronous/blocking. 50,000 users one by one takes forever.
+- No proper failure tracking. If it fails in middle, we don’t clearly know who got skipped.
+- Too many DB writes in loop (one INSERT each time), bad for DB pool.
+- Not retry-safe. Re-running whole thing can spam duplicates.
+
+## The 200 Failed Emails Problem
+If 200 emails fail in middle, old approach gives poor visibility.
+You can’t safely rerun all 50k (duplicate risk), and finding only failed ones becomes messy manual work.
+
+## Redesigned Approach — Queue + Workers
+Core idea: API should return fast. Heavy work runs in background.
+
+Flow:
+1. HR clicks Notify All -> `POST /api/v1/notifications/broadcast`
+2. API creates job row (or queue job), returns `202 Accepted`
+3. Worker pool picks job
+4. Worker chunks students in batches of 500
+5. For each batch, do bulk insert notifications (single query for 500)
+6. Then send SSE + email per notification
+7. Email fail -> mark `email_failed`, push retry queue
+8. End -> job status `done`
+
+Retry worker:
+- Picks failed emails
+- Retries max 3 times with backoff
+- Waits 30s, then 60s, then 120s
+- If still failing, mark permanent failure + alert
+
+## Should DB Save and Email Send Be in Same Transaction?
+No.
+Email is external side effect. You can’t truly rollback real-world email.
+If transaction rolls back due to email API issue, DB loses notification record too, which is worse.
+
+Better way:
+- Save notification in DB first (source of truth)
+- Try email after that
+- If email fails, retry email only
+- Never undo notification write
+
+## Revised Pseudocode
+```text
+function broadcastNotify(studentIds, message):
+  jobId = createJob(studentIds, message, status="queued")
+  enqueueJob(jobId)
+  return { jobId: jobId, status: "accepted" }
+
+
+async function processJob(jobId):
+  job = getJob(jobId)
+  batches = chunkArray(job.studentIds, 500)
+
+  for batch of batches:
+    savedNotifs = bulkInsertNotifications(batch, job.message)
+
+    for notif of savedNotifs:
+      pushSSEEvent(notif.studentId, notif)
+
+      result = await sendEmail(notif.studentId, job.message)
+      if result.failed:
+        markEmailFailed(notif.id)
+        enqueueRetry(notif.id, attempt=1)
+
+  updateJob(jobId, status="completed")
+
+
+async function retryEmail(notifId, attempt):
+  if attempt > 3:
+    markPermanentlyFailed(notifId)
+    return
+
+  notif = getNotification(notifId)
+  result = await sendEmail(notif.studentId, notif.message)
+
+  if result.failed:
+    delay = 30 * Math.pow(2, attempt)
+    scheduleRetry(notifId, attempt + 1, delay)
+```

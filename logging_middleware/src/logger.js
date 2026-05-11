@@ -1,5 +1,4 @@
 const { saveToken, getToken } = require('./tokenStore');
-require('dotenv').config();
 
 const BASE_URL = process.env.BASE_URL;
 const CLIENT_ID = process.env.CLIENT_ID;

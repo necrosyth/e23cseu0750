@@ -468,3 +468,32 @@ async function retryEmail(notifId, attempt):
     delay = 30 * Math.pow(2, attempt)
     scheduleRetry(notifId, attempt + 1, delay)
 ```
+
+# Stage 6 — Priority Inbox
+
+## Scoring Formula
+Each notification score:
+
+score = (typeWeight * 0.7) + (recencyScore * 0.3)
+
+Type weights:
+- Placement = 3
+- Result = 2
+- Event = 1
+
+Recency:
+- 1 / (1 + ageInHours)
+- fresh notif is near 1.0, older notif keeps dropping
+
+So type matters more than recency, but same type notifs are ranked by freshness.
+
+## Maintaining Top-N as New Notifications Arrive
+Keep max N sorted list.
+When new notif comes:
+- score it
+- if list not full, add + sort
+- if full and score beats lowest, replace lowest + sort
+- else ignore
+
+So no full re-scan each time.
+In real prod, Redis sorted set can do this nicely using ZADD and ZRANGE.

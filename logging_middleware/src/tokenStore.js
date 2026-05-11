@@ -1,16 +1,18 @@
-let store = null;
+// simple in-memory token cache
+let storedToken = null;
+let tokenExpiry = 0;
 
 function saveToken(token, expiresAt) {
-  store = { token, expiresAt };
+  storedToken = token;
+  tokenExpiry = expiresAt;
 }
 
 function getToken() {
-  if (!store) return null;
-  if (Date.now() >= store.expiresAt) {
-    store = null;
+  // expiresAt from the API is a unix timestamp in seconds
+  if (!storedToken || Date.now() / 1000 >= tokenExpiry - 30) {
     return null;
   }
-  return store.token;
+  return storedToken;
 }
 
 module.exports = { saveToken, getToken };

@@ -2,10 +2,7 @@
   "name": "logging-middleware",
   "version": "1.0.0",
   "main": "src/index.js",
-  "scripts": {
-    "build": "echo \"JavaScript package: no TypeScript build required\"",
-    "dev": "node src/index.js"
-  },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "dotenv": "^16.0.0"
+  }
 }

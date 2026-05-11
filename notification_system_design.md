@@ -1,73 +1,75 @@
-# Stage 1 - REST API Design
+# Stage 1 — REST API Design
 
-## 1. Core Actions
-- Get all notifcations for one student (with page + limit)
-- Get one notifcation detail
-- Mark one notifcation as read
-- Mark all notifcations as read
-- Get unread count
-- Send new notifcation (admin only)
+## Core Actions
+- Get all notifications for a student (with pagination and type filter)
+- Get one notification by ID
+- Mark a notification as read
+- Mark all notifications as read at once
+- Get unread count (for the badge on the bell icon)
+- Create a new notification (admin only)
 
-## 2. REST Endpoints Table
+## REST Endpoints
 
-| Method | Endpoint | Description |
+| Method | Endpoint | What it does |
 |---|---|---|
-| GET | /api/v1/notifications | list all, supports `?page` `?limit` `?type` |
-| GET | /api/v1/notifications/:id | get one notifcation |
+| GET | /api/v1/notifications | list all, supports `?page`, `?limit`, `?type` |
+| GET | /api/v1/notifications/:id | single notification detail |
 | PATCH | /api/v1/notifications/:id/read | mark one as read |
-| PATCH | /api/v1/notifications/read-all | mark all as read for logged-in student |
-| GET | /api/v1/notifications/count | unread count |
-| POST | /api/v1/notifications | create notifcation (admin) |
+| PATCH | /api/v1/notifications/read-all | mark all as read for this student |
+| GET | /api/v1/notifications/count | get unread count |
+| POST | /api/v1/notifications | create notification (admin) |
+| GET | /api/v1/notifications/stream | SSE stream for real-time updates |
 
-## 3. Request / Response Contracts
+## Request & Response Contracts
 
-### GET /api/v1/notifications
-Headers:
+Headers for all endpoints:
 - Authorization: Bearer `<token>`
 - Content-Type: application/json
+
+### GET /api/v1/notifications
+Request body: none
 
 Response:
 ```json
 {
+  "success": true,
   "data": [
     {
       "id": "n1",
-      "studentId": 12,
-      "type": "Event",
-      "message": "Hackathon starts tmrw",
+      "studentId": 1042,
+      "type": "Placement",
+      "message": "New hiring drive live now",
       "isRead": false,
-      "createdAt": "2026-05-11T10:10:00Z",
-      "updatedAt": "2026-05-11T10:10:00Z"
+      "createdAt": "2026-05-11T09:15:00Z",
+      "updatedAt": "2026-05-11T09:15:00Z"
     }
   ],
-  "total": 41,
+  "total": 120,
   "page": 1,
-  "limit": 10,
-  "success": true
+  "limit": 10
 }
 ```
 
 ### GET /api/v1/notifications/:id
-Headers same as above.
+Request body: none
 
 Response:
 ```json
 {
+  "success": true,
   "data": {
     "id": "n1",
-    "studentId": 12,
-    "type": "Placement",
-    "message": "New company drive opened",
+    "studentId": 1042,
+    "type": "Event",
+    "message": "Seminar starts at 5 PM",
     "isRead": false,
-    "createdAt": "2026-05-11T10:10:00Z",
-    "updatedAt": "2026-05-11T10:10:00Z"
-  },
-  "success": true
+    "createdAt": "2026-05-11T09:15:00Z",
+    "updatedAt": "2026-05-11T09:15:00Z"
+  }
 }
 ```
 
 ### PATCH /api/v1/notifications/:id/read
-Headers same as above.
 Request body:
 ```json
 {}
@@ -76,21 +78,20 @@ Request body:
 Response:
 ```json
 {
+  "success": true,
   "data": {
     "id": "n1",
-    "studentId": 12,
+    "studentId": 1042,
     "type": "Result",
-    "message": "Mid sem result out",
+    "message": "Result published",
     "isRead": true,
-    "createdAt": "2026-05-11T10:10:00Z",
-    "updatedAt": "2026-05-11T10:20:00Z"
-  },
-  "success": true
+    "createdAt": "2026-05-11T09:15:00Z",
+    "updatedAt": "2026-05-11T10:00:00Z"
+  }
 }
 ```
 
 ### PATCH /api/v1/notifications/read-all
-Headers same as above.
 Request body:
 ```json
 {}
@@ -99,61 +100,180 @@ Request body:
 Response:
 ```json
 {
+  "success": true,
   "data": {
-    "updated": 14
-  },
-  "success": true
+    "updatedCount": 18
+  }
 }
 ```
 
 ### GET /api/v1/notifications/count
-Headers same as above.
+Request body: none
 
 Response:
 ```json
 {
+  "success": true,
   "data": {
-    "count": 14
-  },
-  "success": true
+    "count": 18
+  }
 }
 ```
 
 ### POST /api/v1/notifications
-Headers same as above.
 Request body:
 ```json
 {
-  "studentId": 12,
+  "studentId": 1042,
   "type": "Event",
-  "message": "Guest lecture at 4pm"
+  "message": "Guest lecture at 4 PM"
 }
 ```
 
 Response:
 ```json
 {
+  "success": true,
   "data": {
     "id": "n99",
-    "studentId": 12,
+    "studentId": 1042,
     "type": "Event",
-    "message": "Guest lecture at 4pm",
+    "message": "Guest lecture at 4 PM",
     "isRead": false,
     "createdAt": "2026-05-11T11:00:00Z",
     "updatedAt": "2026-05-11T11:00:00Z"
-  },
-  "success": true
+  }
 }
 ```
 
-## 4. Real-Time Notification Design
-Two ways: WebSockets or SSE.
+### GET /api/v1/notifications/stream
+Request body: none
 
-I’d pick SSE here. Reason is simple. We only push from server to client, no two-way chat thing needed. So SSE is lighter, easier to scale.
+Response:
+```json
+{
+  "success": true,
+  "data": "SSE stream opened"
+}
+```
 
-Flow is like this:
-- Student opens notifcation page
-- Client connects to `GET /api/v1/notifications/stream`
-- Server keeps it open + pushes event when new notifcation comes
-- Inside server we keep a small map: `studentId -> response stream`
-- When DB saves a new notifcation, service checks map and writes SSE event to that student stream
+## Real-Time Notifications — SSE
+WebSockets are two-way. Useful when client also needs to send live stuff back.
+For notifications here, server only pushes updates, so SSE fits better.
+
+Why SSE is nice:
+- plain HTTP, simple setup
+- browser auto reconnect is built-in
+- less moving pieces for this use case
+
+Flow:
+- Student opens app, client connects to `GET /api/v1/notifications/stream`
+- Server keeps the connection open and pushes `text/event-stream`
+- Server keeps a `Map` of `studentId -> open response`
+- New notification gets created
+- Service finds that student stream and writes event
+- Client gets event and updates UI, no polling
+
+Sample SSE event:
+```text
+event: notification
+data: {"id":"abc123","type":"Placement","message":"Google hiring","isRead":false,"createdAt":"2026-05-11T11:30:00Z"}
+```
+
+# Stage 2 — Database Design
+
+## Why PostgreSQL
+- Notifications have clear structure: one student can have many notifications.
+- We need filtering, sorting, and pagination. SQL does this well.
+- ACID safety matters. A notification should not get lost in middle of write.
+- PostgreSQL can scale with read replicas later.
+- JSONB support is there if we add extra metadata in future.
+
+## Schema
+```sql
+CREATE TABLE students (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(150) UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('Placement', 'Event', 'Result')),
+  message TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- index on unread notifications per student
+CREATE INDEX idx_unread_notifs
+ON notifications (student_id, created_at DESC)
+WHERE is_read = FALSE;
+```
+
+## Problems at Scale
+- Slow queries: at 5 million rows, even indexed reads can get slower.
+- Write bottleneck: big bulk inserts update indexes again and again.
+- Table bloat: old read notifications keep growing and eat space.
+
+## Solutions
+### 1) Partition by month
+```sql
+CREATE TABLE notifications_partitioned (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('Placement', 'Event', 'Result')),
+  message TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (id, created_at)
+) PARTITION BY RANGE (created_at);
+
+CREATE TABLE notifications_2026_05
+PARTITION OF notifications_partitioned
+FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
+```
+Old partitions can be detached + archived without touching live month.
+
+### 2) Read replicas
+- Send all SELECT traffic to replica.
+- Keep INSERT/UPDATE/DELETE on primary.
+- App logic mostly same, only read DB connection changes.
+
+### 3) Archive old data
+- Move notifications older than 90 days to `cold_notifications`.
+- Or export old chunks to object storage like S3.
+- Live table stays lean and fast.
+
+## Queries for Each API
+```sql
+-- Paginated list with optional type filter
+SELECT * FROM notifications
+WHERE student_id = $1
+  AND ($2::text IS NULL OR type = $2)
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4;
+
+-- Mark one as read
+UPDATE notifications
+SET is_read = TRUE, updated_at = NOW()
+WHERE id = $1 AND student_id = $2;
+
+-- Mark all as read
+UPDATE notifications
+SET is_read = TRUE, updated_at = NOW()
+WHERE student_id = $1 AND is_read = FALSE;
+
+-- Unread count
+SELECT COUNT(*) FROM notifications
+WHERE student_id = $1 AND is_read = FALSE;
+
+-- Insert notification (admin)
+INSERT INTO notifications (student_id, type, message)
+VALUES ($1, $2, $3)
+RETURNING *;
+```

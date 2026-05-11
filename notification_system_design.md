@@ -277,3 +277,43 @@ INSERT INTO notifications (student_id, type, message)
 VALUES ($1, $2, $3)
 RETURNING *;
 ```
+
+# Stage 3 — Query Performance
+
+## Is the Original Query Correct?
+Original query:
+```sql
+SELECT * FROM notifications WHERE studentID = 1042 AND isRead = false ORDER BY createdAt ASC;
+```
+
+Not really correct for PostgreSQL in this schema.
+Our table uses `student_id`, `is_read`, `created_at` (snake_case), not camelCase.
+So this query can fail with "column does not exist".
+
+Also `SELECT *` is not ideal. It pulls everything even when we only need a few fields.
+
+## Why Is It Slow?
+- Table has 5 million rows.
+- If there is no good combined index for `student_id` + `is_read`, DB may scan huge data.
+- Even with single-column index, planner may still choose seq scan depending on row distribution.
+
+## What to Fix
+Use a partial index only for unread rows. That keeps index smaller.
+
+```sql
+CREATE INDEX idx_student_unread ON notifications (student_id, created_at DESC)
+WHERE is_read = FALSE;
+```
+
+Use this improved query:
+```sql
+SELECT id, type, message, created_at
+FROM notifications
+WHERE student_id = 1042 AND is_read = FALSE
+ORDER BY created_at ASC;
+```
+
+Expected result:
+- Old query path can touch millions of rows.
+- New query uses index scan and only hits unread rows for one student.
+- Time can drop from seconds to milliseconds in many cases.

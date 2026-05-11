@@ -1,3 +1,3 @@
-const { log } = require('../../logging_middleware/src/index');
+const { log } = require('../../logging_middleware/src/index')
 
-module.exports = { log };
+module.exports = { log }

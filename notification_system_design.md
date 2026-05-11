@@ -317,3 +317,65 @@ Expected result:
 - Old query path can touch millions of rows.
 - New query uses index scan and only hits unread rows for one student.
 - Time can drop from seconds to milliseconds in many cases.
+
+# Stage 4 — Caching and Performance
+
+## The Problem
+Right now every refresh hits DB again.
+If even 50,000 students are active in placement time, that can mean 50,000 queries around same time.
+DB can choke fast, even if each query is not huge.
+
+## Strategy 1 — Redis Cache (best option)
+How it works:
+- After DB fetch, store response in Redis key like `notifs:<studentId>` with TTL 60 sec
+- Next same request checks Redis first
+- If cache hit, return directly (skip DB)
+- On new notification or mark-read, delete that student's key so next read is fresh
+
+Tradeoffs:
+- Big DB relief, cache hit can go very high in normal traffic
+- Redis read is super fast
+- Need to run/manage Redis infra
+- Need careful invalidation logic, else stale data issue
+- All backend instances must use same Redis
+
+## Strategy 2 — HTTP Cache Headers
+How it works:
+- Send `Cache-Control: private, max-age=30` in list response
+- Browser keeps response for 30 seconds
+
+Tradeoffs:
+- Very easy, almost no backend work
+- Reduces repeat calls from same tab
+- No proper invalidation, new notif can appear late
+- Weak for multi-tab or multi-device case
+- Not great with SSE flow
+
+## Strategy 3 — Pagination + Lazy Loading
+How it works:
+- Load first 20 notifications only
+- Load older ones when user scrolls or taps load more
+
+Tradeoffs:
+- Smaller payload each request
+- No extra infra
+- Still queries DB each page load
+- Old notifs need extra action to view
+
+## Strategy 4 — Only Load Count on Page Load
+How it works:
+- On page open, call only `/count`
+- Show unread badge number
+- Fetch full list only when bell is clicked
+
+Tradeoffs:
+- Most page opens avoid heavy list query
+- Works nicely with SSE updates for badge
+- If user always opens bell instantly, small extra click/wait
+
+## Recommended Approach
+Use combo: Redis cache + pagination + lazy fetch.
+Why this combo:
+- Redis cuts DB pressure
+- Pagination keeps each response light
+- Lazy fetch avoids list query on every page open

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "src/server.js",
   "scripts": {
+    "priority": "node src/runPriority.js",
     "dev": "node --watch src/server.js",
     "start": "node src/server.js"
   },

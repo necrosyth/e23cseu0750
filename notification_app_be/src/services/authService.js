@@ -23,14 +23,20 @@ async function fetchToken() {
     })
   })
 
+  const raw = await res.text()
+  let data = {}
+  try { data = JSON.parse(raw) } catch (e) {}
+
   if (!res.ok) {
-    const data = await res.text()
-    throw new Error(`auth failed: ${res.status} ${data}`)
+    const msg = data.message || raw || 'auth failed'
+    throw new Error(`auth failed: ${res.status} ${msg}`)
   }
 
-  const data = await res.json()
   token = data.access_token
-  expiresAt = data.expires_in
+  const ttl = Number(data.expires_in || 0)
+  expiresAt = Math.floor(Date.now() / 1000) + ttl
+
+  if (!token) throw new Error('auth failed: missing access_token')
   return token
 }
 
@@ -40,4 +46,9 @@ async function getToken() {
   return fetchToken()
 }
 
-module.exports = { getToken }
+async function getTokenWithExpiry() {
+  const t = await getToken()
+  return { token: t, expiresAt }
+}
+
+module.exports = { getToken, getTokenWithExpiry }

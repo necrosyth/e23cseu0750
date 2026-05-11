@@ -1,4 +1,5 @@
 const { getNotifications } = require('../services/notifService')
+const { getTokenWithExpiry } = require('../services/authService')
 
 async function listNotifications(req, res, next) {
   try {
@@ -24,4 +25,13 @@ async function listNotifications(req, res, next) {
   }
 }
 
-module.exports = { listNotifications }
+async function getAuthToken(req, res, next) {
+  try {
+    const out = await getTokenWithExpiry()
+    return res.json(out)
+  } catch (err) {
+    return next(err)
+  }
+}
+
+module.exports = { listNotifications, getAuthToken }

@@ -9,7 +9,7 @@ const config = {
   rollNo: process.env.ROLL_NO,
   accessCode: process.env.ACCESS_CODE,
   name: process.env.NAME,
-  allowedOrigin: process.env.ALLOWED_ORIGIN || '*'
+  allowedOrigin: process.env.ALLOWED_ORIGIN || 'http://localhost:3000'
 }
 
 const required = ['clientId', 'clientSecret', 'email', 'rollNo', 'accessCode']

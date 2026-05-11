@@ -4,33 +4,29 @@ const { log } = require('../logger')
 
 async function getNotifications(page, limit, type) {
   const token = await getToken()
-  const url = new URL(`${config.baseUrl}/notifications`)
-  url.searchParams.set('page', String(page))
-  url.searchParams.set('limit', String(limit))
-  if (type && type !== 'All') url.searchParams.set('notification_type', type)
-
-  await log('backend', 'info', 'service', `fetch notifications page=${page} limit=${limit} type=${type || 'All'}`)
-
-  const res = await fetch(url.toString(), {
+  const res = await fetch(`${config.baseUrl}/notifications`, {
     headers: { Authorization: `Bearer ${token}` }
   })
 
+  const raw = await res.text()
+  let data = {}
+  try { data = JSON.parse(raw) } catch (e) {}
+
   if (!res.ok) {
-    const data = await res.text()
-    await log('backend', 'error', 'service', `notifications api failed ${res.status}`)
-    throw new Error(`notifications api failed: ${res.status} ${data}`)
+    const msg = data.message || raw || `status ${res.status}`
+    throw new Error(msg)
   }
 
-  const data = await res.json()
-  const notifs = data.notifications || []
-  await log('backend', 'info', 'service', `notifications fetched count=${notifs.length}`)
+  let notifs = data.notifications || data.data || []
+  if (type && type !== 'All') notifs = notifs.filter(n => n.Type === type || n.type === type)
 
-  return {
-    notifs,
-    total: data.total,
-    page: data.page,
-    limit: data.limit
-  }
+  const total = notifs.length
+  const start = (Number(page) - 1) * Number(limit)
+  const end = start + Number(limit)
+  const paged = notifs.slice(start, end)
+
+  await log('backend', 'info', 'service', `notifications fetched count=${paged.length} total=${total}`)
+  return { notifs: paged, total, page: Number(page), limit: Number(limit) }
 }
 
 module.exports = { getNotifications }

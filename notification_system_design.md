@@ -497,3 +497,42 @@ When new notif comes:
 
 So no full re-scan each time.
 In real prod, Redis sorted set can do this nicely using ZADD and ZRANGE.
+
+# Stage 7 — Backend Express Server
+
+## What I Built
+- Simple Express server in JS (CommonJS)
+- Config from env with required key checks
+- Central logger wrapper using logging middleware
+- Auth service that fetches and caches bearer token
+- Notifications service that proxies external API
+- Controller with page/limit validation
+- Routes for health + notifications
+- Request logger middleware
+- Error handler middleware
+
+## Routes
+- GET `/api/v1/health`
+- GET `/api/v1/notifications?page=1&limit=20&type=Placement`
+
+## Flow
+1. Request comes to `/notifications`
+2. Controller validates query
+3. Service gets cached token or fetches new one
+4. Service calls evaluation API
+5. Response is sent in `{ success: true, data, page, limit, total }`
+6. Request logger logs method/path/status
+7. If error, error handler returns `{ success: false, error }`
+
+# Stage 8 — Frontend Next.js App
+
+## What I Built
+- Next.js app structure in `notification_app_fe`
+- Two pages: All Notifications and Priority Inbox
+- Shared components: Navbar, FilterBar, NotificationCard
+- Utility modules: API client, scorer, viewed store
+- Frontend logging hook using backend `/api/v1/auth-token`
+
+## Backend Change for Stage 8
+- Added `GET /api/v1/auth-token`
+- Returns `{ token, expiresAt }` for frontend logger hook

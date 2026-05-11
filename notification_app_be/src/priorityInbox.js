@@ -58,7 +58,7 @@ async function fetchNotifications() {
     }
 
     const data = await res.json()
-    const notifs = data.notifications || []
+    const notifs = data.notifications || data.data || []
     await log('backend', 'info', 'service', `got ${notifs.length} notifications from api`)
     return notifs
   } catch (err) {
